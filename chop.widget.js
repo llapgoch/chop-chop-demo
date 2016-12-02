@@ -69,19 +69,19 @@
     /* Widget */
     $.widget(WIDGET_ID, $.chopchop.base, {
         TRIGGER_TYPE_DIRECT: 'direct-only',
-        TRIGGER_TYPE_INDIRECT: 'indirect-only',
-        TRIGGER_TYPE_BOTH: 'both',
+        TRIGGER_TYPE_ALL: 'all',
 
         ACTION_DEACTIVATE: 'deactivate',
         ACTION_ACTIVATE: 'activate',
         ACTION_TOGGLE: 'toggle',
 
+        INSTANCE_NAME: 'chopchop-toggle',
 
         options: {
             dataAction: 'action',
             dataPrepend: 'ccToggle',
 
-            triggerType: 'both',
+            triggerType: 'all',
             triggerOn: null,
             target: '',
             action: 'toggle'
@@ -100,6 +100,11 @@
             if(triggerOn) {
                 events[triggerOn] = function (ev) {
                     ev.preventDefault();
+
+                    if(self.options.triggerType == self.TRIGGER_TYPE_DIRECT && ev.target !== self.element){
+                        return;
+                    }
+                    console.log("perform");
                     self.performAction();
                 };
             }
@@ -108,7 +113,16 @@
         },
 
         _getTargets: function(){
+            console.log(this._getLocalOption('target'));
             return $(this._getLocalOption('target'));
+        },
+
+        _checkInstantiate: function(el){
+            var $el = $(el);
+
+            if($el.data(this.INSTANCE_NAME) == false){
+                $el.toggle();
+            }
         },
 
         activate: function(){
@@ -123,16 +137,39 @@
             this.performAction(this.ACTION_TOGGLE);
         },
 
-
         performAction: function(type){
+            var self = this;
+
             if(!type){
-                type = this.ACTION_TOGGLE;
+                type = this.options.action;
             }
 
-            this._getTargets().each(function(){
+            if(type == this.ACTION_TOGGLE){
+                type = this.element.hasClass(this.options.activeClass) ? this.ACTION_DEACTIVATE : this.ACTION_ACTIVATE;
+            }
 
+            if(type == this.ACTION_ACTIVATE){
+                this.element.addClass(this.options.activeClass);
+            }else{
+                this.element.removeClass(this.options.activeClass);
+            }
+
+            console.log(this._getTargets());
+
+            this._getTargets().each(function(){
+                var $this = $(this);
+
+                self._checkInstantiate(this);
+
+                if(type == self.ACTION_ACTIVATE){
+                    $target.activate();
+                }else{
+                    $target.deactivate();
+                }
             });
         }
+
+
     });
 
 
