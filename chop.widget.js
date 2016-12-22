@@ -5,7 +5,9 @@
             activeClass: 'is-active',
             inactiveClass: 'is-inactive',
             // Override data prepend in subclasses
-            dataPrepend: ''
+            dataPrepend: '',
+            dataActiveClass: 'activeClass',
+            dataInactiveClass: 'inactiveClass'
         },
 
         _create: function(){
@@ -40,10 +42,10 @@
         /* Gets an option first from the elements data, then falls back to the option object */
         _getLocalOption: function(option){
             // Replace first character with an uppercase version
-            var localOption =  this.options.dataPrepend + option.replace(/^([a-z])/, function(a){return a.toUpperCase()});
+            var localOption =  this._createDataProperty(option);
             var local = this.element.data(localOption);
 
-            if(local){
+            if(local !== undefined){
                 return local;
             }
 
@@ -51,13 +53,18 @@
         },
 
         _createDataProperty: function(prop) {
-            return this.options.dataPrepend + "-" + prop;
+            return this.options.dataPrepend + prop.replace(/^([a-z])/, function(a){
+                    return a.toUpperCase();
+                });
         },
 
-        // Constructs a global selector to be used, E.g. 'group' in the toggle widget will result in something like [data-cc-toggle-group="val"]
+        // Constructs a global selector to be used, E.g. 'group' in the toggle
+        // widget will result in something like [data-cc-toggle-group="val"]
         _getGlobalDataSelector: function(prop, val) {
             val = val ? '="' + val + '"' : '';
-            return '[data-' + this.options.dataPrepend.replace(/([A-Z])/g, function(a){return "-" + a.toLowerCase()}) + "-" + prop + val + ']';
+            return '[data-' + this.options.dataPrepend.replace(/([A-Z])/g, function(a){
+                    return "-" + a.toLowerCase();
+                }) + "-" + prop + val + ']';
         },
 
         _getData: function(prop) {
@@ -67,7 +74,7 @@
 }(jQuery));
 
 ;(function($){
-    /* Definition consts */
+    /* Definition constants */
     window.Chopchop = window.Chopchop || {};
     window.Chopchop.Toggle = {};
 
@@ -83,39 +90,109 @@
     // An array of all processed elements to prevent infinite loops
     Static.processed = [];
 
-    /* Widget */
+    // To reinitialise at a later point, use window.Chopchop.Toggle.init();
+    // Only initialise on elements which have been explicitly given a class of js-cc-toggle an action,
+    // or triggers for activate or deactivate
+    Static.init = function(){
+        $('.js-cc-toggle, [data-cc-toggle-action], ' +
+            '[data-cc-toggle-trigger-activate], ' +
+            '[data-cc-toggle-trigger-deactivate').toggle();
+    };
+
+    /* Initialisation */
+    $(document).on('ready.' + Static.WIDGET_ID, function(ev) {
+        Static.init();
+    });
+
+
+    /* Widget Definition*/
     $.widget(Static.WIDGET_ID, $.chopchop.base, {
         options: {
-            dataAction: 'action',
-            dataGroup: 'group',
             dataPrepend: 'ccToggle',
 
+            dataAction: 'action',
+            dataGroup: 'group',
+            dataTrigger: 'trigger', // Type of event
+            dataTriggerType: 'triggerType', // direct-only (only for this element) or all (allow bubbling)
+            dataCascade: 'cascade',
+            dataTarget: 'target',
+            dataStateful: 'stateful',
+            dataClosestContainer: 'closestContainer',
+            /* A target to callback to and execute the action, but don't chain on its targets or cascades */
+            dataTargetCallback: 'targetCallback',
+            dataTriggerActivate: 'triggerActivate',
+            dataTriggerDeactivate: 'triggerDeactivate',
+
             triggerType: 'all',
-            triggerOn: null,
+            trigger: 'click',
+            triggerActivate: '', // E.g. 'mouseenter'
+            triggerDeactivate: '', // E.g. 'mouseleave'
+            closestContainer: null, // A closest() container to look within for target selectors
+            action: 'toggle',
+            targetCallback: '',
+            stateful: true,
             target: '',
-            group: '',
-            action: 'toggle'
         },
+
+        // Initialise as jQuery arrays in constructor
+        $targetElements: null,
+        $targetCallbackElements: null,
+        $cascadeElements: null,
 
         _create: function(){
             this._super();
+
+            this.$targetElements = $([]);
+            this.$targetCallbackElements = $([]);
+            this.$cascadeElements = $([]);
+
             this._addEvents();
         },
 
         _addEvents: function(){
             var self = this,
                 events = {},
-                triggerOn = this._getLocalOption('trigger');
+                action = this._getLocalOption(this.options.dataAction),
+                triggerOn = this._getLocalOption(this.options.dataTrigger),
+                triggerDeactivate = this._getLocalOption(this.options.dataTriggerDeactivate),
+                triggerActivate = this._getLocalOption(this.options.dataTriggerActivate),
+                triggerType = this._getLocalOption(this.options.dataTriggerType);
 
-            if(triggerOn) {
+
+            // Explicitly require a data attribute of action to init this form of event
+            if(action) {
                 events[triggerOn] = function (ev) {
+                    ev.preventDefault();
+
+                    if(triggerType == Static.TRIGGER_TYPE_DIRECT && (self.element.is(ev.target) === false)){
+                        return;
+                    }
+
+                    self.performAction(action);
+                };
+            }
+
+            if(triggerActivate) {
+                events[triggerActivate] = function (ev) {
+                    ev.preventDefault();
+
+                    if(triggerType == Static.TRIGGER_TYPE_DIRECT && (self.element.is(ev.target) === false)){
+                        return;
+                    }
+
+                    self.activate();
+                };
+            }
+
+            if(triggerDeactivate) {
+                events[triggerDeactivate] = function (ev) {
                     ev.preventDefault();
 
                     if(self.options.triggerType == Static.TRIGGER_TYPE_DIRECT && ev.target !== self.element){
                         return;
                     }
 
-                    self.performAction();
+                    self.deactivate();
                 };
             }
 
@@ -123,48 +200,132 @@
         },
 
         _getTargets: function(){
-            return $(this._getLocalOption('target'));
+            return $(this._getLocalOption(this.options.dataTarget), this._getClosestContainer());
         },
 
+
+        // Cascades can be used by data-cc-toggle-cascade, and can also be type based such
+        // as data-cc-toggle-cascade-activate and data-cc-toggle-cascade-deactivate
         _getCascades: function(type){
-            var cascade = this._getLocalOption('cascade') || '';
+            var cascade = this._getLocalOption(this.options.dataCascade) || '';
 
             if(type){
-                var cascadeType = this._getLocalOption('cascade-' + type);
+                var cascadeType = this._getLocalOption(this.options.dataCascade + '-' + type);
 
                 if(cascadeType){
                     cascade = cascade ? ", " + cascadeType : cascadeType;
                 }
             }
 
-            return $(cascade);
+            return $(cascade, this._getClosestContainer());
         },
 
+        _getClosestContainer: function(){
+            var closestContainer = this._getLocalOption(this.options.dataClosestContainer);
+
+            if(!closestContainer){
+                return document;
+            }
+
+            var $container = this.element.closest(closestContainer);
+
+            if($container.size()){
+                return $container;
+            }
+
+            return document;
+        },
+
+        // Create a toggle instance on the element if one doesn't exist, default the trigger to null so it
+        // does not listen for events, unless overridden by data-cc-toggle-trigger
         _getInstance: function($el){
             if(!$el.data(Static.INSTANCE_NAME)){
-                $el.toggle();
+                $el.toggle({
+                    trigger: null
+                });
             }
 
             return $el.data(Static.INSTANCE_NAME);
         },
 
-        activate: function(partOfChain){
-            this.performAction(Static.ACTION_ACTIVATE, partOfChain);
+        _removeActiveClass: function () {
+            this._removeClass(this._getLocalOption(this.options.dataActiveClass));
         },
 
-        deactivate: function(partOfChain){
-            this.performAction(Static.ACTION_DEACTIVATE, partOfChain);
+        _addActiveClass: function () {
+            this._addClass(this._getLocalOption(this.options.dataActiveClass));
+        },
+
+        _addInactiveClass: function () {
+            this._addClass(this._getLocalOption(this.options.dataInactiveClass));
+        },
+
+        _removeInactiveClass: function () {
+            this._removeClass(this._getLocalOption(this.options.dataInactiveClass));
+        },
+
+        _isStateful: function(){
+            return this._getLocalOption(this.options.dataStateful);
+        },
+
+        /******************************************
+         * Public methods
+         ******************************************/
+
+        activate: function(partOfChain, cascade){
+            this.performAction(Static.ACTION_ACTIVATE, partOfChain, cascade);
+        },
+
+        deactivate: function(partOfChain, cascade){
+            this.performAction(Static.ACTION_DEACTIVATE, partOfChain, cascade);
         },
 
         toggle: function(){
             this.performAction(Static.ACTION_TOGGLE);
         },
 
-        performAction: function(type, partOfChain){
+        isActive: function(){
+            return this.element.hasClass(this.options.activeClass);
+        },
+
+
+        addTargetElement: function($el){
+            this.$targetElements.push($el);
+        },
+
+        removeTargetElement: function($el){
+            this.$targetElements.not($el);
+        },
+
+        addCascadeElement: function($el){
+            this.$cascadeElements.push($el);
+        },
+
+        removeCascadeElement: function($el){
+            this.$cascadeElements.not($el);
+        },
+
+        addTargetCallbackElement: function($el){
+            this.$targetCallbackElements.push($el);
+        },
+
+        removeTargetCallbackElement: function($el){
+            this.$targetCallbackElements.not($el);
+        },
+
+        destroy: function(){
+            this._super();
+            this._removeActiveClass();
+            this._removeInactiveClass();
+        },
+
+        performAction: function(type, partOfChain, cascade){
             var self = this,
-                toggle,
+                stateful = this._isStateful(),
                 group;
 
+            // Default to true for cascades
+            cascade = cascade === false ? false : true;
 
             if(!partOfChain){
                 Static.processed = [];
@@ -181,61 +342,65 @@
                 type = this.options.action;
             }
 
+            // Flip the actions if we're toggling
             if(type == Static.ACTION_TOGGLE){
-                type = this.element.hasClass(this.options.activeClass) ? Static.ACTION_DEACTIVATE : Static.ACTION_ACTIVATE;
+                type = this.isActive() ? Static.ACTION_DEACTIVATE : Static.ACTION_ACTIVATE;
             }
 
             if(type == Static.ACTION_ACTIVATE){
-                this.element.addClass(this.options.activeClass);
-                this.element.removeClass(this.options.inactiveClass);
+                if(stateful) {
+                    this._addActiveClass();
+                    this._removeInactiveClass();
+                }
 
                 // Deal with groups
                 group = this._getLocalOption(this.options.dataGroup);
 
                 if(group){
-                    $(this._getGlobalDataSelector(this.options.dataGroup, group)).each(function(){
+                    $(this._getGlobalDataSelector(this.options.dataGroup, group), this._getClosestContainer()).each(function(){
                         var $this = $(this);
-                        console.log()
-                        if($this == this.element){
-                            console.log("ignore group item");
+
+                        // Don't do anything for *this* element, we're only interested in
+                        // deactivating other members of the group
+                        if($this.is(self.element)){
                             return true;
                         }
 
-                        self._getInstance($this).deactivate(true);
+                        // Don't cascade when deactivating group items otherwise targets
+                        // which should remain active will be deactivated
+                        self._getInstance($this).deactivate(true, false);
                     });
                 }
             }else{
-                this.element.removeClass(this.options.activeClass);
-                this.element.addClass(this.options.inactiveClass);
+                if(stateful) {
+                    this._removeActiveClass();
+                    this._addInactiveClass();
+                }
             }
 
-            var totalElements = this._getTargets().toArray().concat(this._getCascades(type).toArray());
+            // TODO: Consider merging cascades and targets (they appear to be synonymous) into something like 'chain'
+            if(cascade) {
+                var totalElements = this._getTargets().toArray().concat(this._getCascades(type).toArray());
 
-            $(totalElements).each(function(){
+                $(totalElements).each(function () {
+                    var $this = $(this);
+
+                    self._getInstance($this).performAction(type, true);
+                });
+            }
+
+            // data-cc-toggle-target-callback allows a selector to be chained, without it having its targets
+            // or cascades also called. Most useful for group items to call back to a button or link
+            var $targetCallback = $(this._getLocalOption(this.options.dataTargetCallback), this._getClosestContainer());
+
+            $targetCallback.each(function(){
                 var $this = $(this);
 
-                toggle = self._getInstance($this);
-
-                if(type == Static.ACTION_ACTIVATE){
-                    toggle.activate(true);
-                }else{
-                    toggle.deactivate(true);
-                }
+                self._getInstance($this).performAction(type, true, false);
             });
+
+            this._trigger(type);
         }
-
-    });
-
-
-
-    /* Initialisation */
-    $(document).on('ready.' + Static.WIDGET_ID, function(ev) {
-        $('.js-cc-toggle').toggle();
-    });
-
-    /* Reinitialisation */
-    $(document).on('click.' + Static.WIDGET_ID, '.js-cc-toggle', function(ev) {
-        // if($(this).data('chopchop-'))
     });
 }(jQuery));
 
