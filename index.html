@@ -2,7 +2,9 @@
     <head>
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js"></script>
         <script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.js"></script>
+
         <script src="chop.widget.js"></script>
+        <script src="chop.collapsible.widget.js"></script>
         <script>
 
         </script>
@@ -15,15 +17,42 @@
                 background: red;
                 border: 1px solid white;
             }
+
+            .redbox.is-inactive{
+                display: none;
+            }
+
+            a.is-active{
+                color: purple;
+            }
         </style>
     </head>
 
     <body>
-        <a href="#" class="js-cc-toggle" data-cc-toggle-trigger="click" data-cc-toggle-trigger-type="direct" data-cc-toggle-target=".moose">Test</a>
+        <a href="#" class="js-cc-toggle" data-cc-toggle-action="activate" data-cc-toggle-trigger-type="direct" data-cc-toggle-target=".moose">Test</a>
 
-        <div class="redbox moose js-cc-toggle" data-cc-toggle-cascade=".js-cc-toggle" data-cc-toggle-group="red" ></div>
-        <div class="redbox js-cc-toggle" data-cc-toggle-cascade=".js-cc-toggle" data-cc-toggle-group="red"></div>
-        <div class="redbox js-cc-toggle" data-cc-toggle-cascade=".js-cc-toggle" data-cc-toggle-group="red"></div>
-        <div class="redbox js-cc-toggle" data-cc-toggle-cascade=".js-cc-toggle" data-cc-toggle-group="red"></div>
+        <div class="redbox moose js-cc-toggle"  data-cc-toggle-trigger-activate="mouseenter" data-cc-toggle-trigger-deactivate="mouseleave" data-cc-toggle-cascade=".js-cc-toggle" data-cc-toggle-group="red">
+            <span>FOO</span>
+        </div>
+        <div class="redbox js-cc-toggle" data-cc-toggle-trigger="mouseover" data-cc-toggle-cascade=".js-cc-toggle" data-cc-toggle-group="red"></div>
+        <div class="redbox js-cc-toggle" data-cc-toggle-trigger="mouseover" data-cc-toggle-cascade=".js-cc-toggle" data-cc-toggle-group="red"></div>
+        <div class="redbox js-cc-toggle" data-cc-toggle-trigger="mouseover" data-cc-toggle-cascade=".js-cc-toggle" data-cc-toggle-group="red"></div>
+
+
+        <div class="js-cc-collapsible">
+            <div class="container__header">Moo</div>
+            <div class="container__header">Foo</div>
+
+            <div class="container__body">Moo Body</div>
+            <div class="container__body">Foo Body</div>
+        </div>
+
+        <div class="js-cc-collapsible">
+            <div class="container__header">Moo</div>
+            <div class="container__header">Foo</div>
+
+            <div class="container__body">Moo Body</div>
+            <div class="container__body">Foo Body</div>
+        </div>
     </body>
 </html>
