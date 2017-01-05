@@ -3,7 +3,8 @@
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js"></script>
         <script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.js"></script>
 
-        <script src="chop.widget.js"></script>
+        <script src="chop.base.widget.js"></script>
+        <script src="chop.toggle.widget.js"></script>
         <script src="chop.collapsible.widget.js"></script>
         <script>
 
@@ -24,6 +25,14 @@
 
             a.is-active{
                 color: purple;
+            }
+
+            .container__body.is-inactive {
+                display: none;
+            }
+
+            .container__header.is-active {
+                color: red;
             }
         </style>
     </head>
@@ -47,12 +56,12 @@
             <div class="container__body">Foo Body</div>
         </div>
 
-        <div class="js-cc-collapsible">
-            <div class="container__header">Moo</div>
-            <div class="container__header">Foo</div>
+        <div class="js-cc-collapsible" data-cc-collapsible-mode="one-remain">
+            <div class="container__header is-inactive" data-cc-collapsible-active-initial="true">Moo</div>
+            <div class="container__header is-inactive">Foo</div>
 
-            <div class="container__body">Moo Body</div>
-            <div class="container__body">Foo Body</div>
+            <div class="container__body is-inactive">Moo Body</div>
+            <div class="container__body is-inactive">Foo Body</div>
         </div>
     </body>
 </html>
